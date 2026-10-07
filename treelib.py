@@ -4,23 +4,22 @@ import math
 COL = {'copper': '#B8764B', 'copperL': '#E0B08A', 'copperD': '#8C5532', 'steel': '#8B919B',
        'white': '#F6F4F0', 'concrete': '#E3E1DC', 'graphite': '#17191E'}
 
-DEF = dict(n=7, sides='both', stem=True, stemExtra=120, stemColor='copper', bend='arc', arc=55, angle=12,
-           len=560, lenMode='grow', lenVar=35, step=46, start=420, spacing='even', cluster=65, sw=3, gap=4,
-           colors=['copper', 'copperL', 'white', 'steel'], combo='alt', tip='none', tipSize=100, bg='graphite', seed=11)
+DEF = dict(n=3, sides='right', stem=False, stemExtra=120, stemColor='steel', bend='arc', arc=55, arcVar=35, angle=6,
+           len=560, lenMode='random', lenVar=15, step=260, start=520, spacing='even', cluster=65, sw=1.3, gap=4,
+           colors=['steel', 'copperL'], combo='alt', tip='none', tipSize=100, bg='graphite', seed=11, glow=90, glowSize=75)
 
+# v3 «Листья»: тонкая линия + мягкий свет внутри изгиба; медь и сталь
 PRESETS = {
-    'Пучок': {},
-    'Портфель': dict(n=4, arc=28, angle=38, len=600, lenMode='random', lenVar=30, step=120, start=360, sw=5, gap=7,
-                     tip='dot', colors=['copper', 'copperL', 'steel'], combo='alt', stemColor='white', stemExtra=60),
-    'Блокчейн': dict(n=6, bend='corner', angle=34, len=300, lenMode='shrink', lenVar=40, step=150, start=320, sw=3,
-                     gap=7, tip='node', tipSize=120, colors=['steel'], combo='one', stemColor='white', stemExtra=80),
-    'Поток': dict(n=16, arc=75, angle=4, len=700, lenMode='random', lenVar=45, step=34, start=300, spacing='cluster',
-                  cluster=70, sw=2, gap=3, colors=['copper', 'copperL', 'steel'], combo='grad', stemColor='copper',
-                  stemExtra=160),
-    'Росток': dict(n=2, arc=45, angle=30, len=220, lenMode='equal', step=60, start=160, sw=8, gap=6,
-                   colors=['copper'], combo='one', stemColor='copper', stemExtra=40),
-    'Светлый': dict(bg='white', n=9, arc=40, angle=20, colors=['copper', 'steel', 'graphite'], combo='alt',
-                    stemColor='graphite', tip='dot', tipSize=80),
+    'Лист': {},
+    'Пара': dict(n=2, colors=['copperL', 'steel'], arc=60, arcVar=25, step=300, start=600, seed=4),
+    'Крона': dict(n=5, sides='both', stem=True, stemExtra=140, arc=45, arcVar=30, angle=10, len=480, step=150, start=480,
+                  colors=['copperL', 'steel'], glow=75, seed=5),
+    'Росток': dict(n=2, sides='both', stem=True, stemExtra=60, arc=30, arcVar=10, angle=24, len=260, lenMode='equal',
+                   step=40, start=200, colors=['copperL'], combo='one', glow=80, glowSize=70, sw=1.6),
+    'Поток': dict(n=8, arc=70, arcVar=40, angle=3, len=700, lenVar=30, step=110, start=300, spacing='cluster', cluster=50,
+                  glow=55, glowSize=60, colors=['steel', 'copperL', 'steel'], seed=8),
+    'Блокчейн': dict(n=6, sides='both', stem=True, stemExtra=80, bend='corner', angle=34, len=300, lenMode='shrink',
+                     lenVar=40, step=150, start=320, tip='square', tipSize=70, colors=['copperL', 'steel'], glow=0),
 }
 
 
@@ -58,7 +57,8 @@ def preset(name, **over):
 
 def build(S, bg=None):
     """Return (svg_inner, box) in world coords: trunk base at (0,0), tree grows to -y."""
-    R = rng(S['seed']); R2 = rng(S['seed'] * 7 + 3); R3 = rng(S['seed'] * 13 + 5)
+    R = rng(S['seed']); R2 = rng(S['seed'] * 7 + 3); R3 = rng(S['seed'] * 13 + 5); R4 = rng(S['seed'] * 17 + 9)
+    glow = S.get('glow', 0) / 100; gsz = S.get('glowSize', 60) / 100; gdefs = ''; glows = ''; uid = S.get('uid', 'g')
     n, sw = S['n'], S['sw']
     gap = sw + S['gap']
     bgHex = bg if bg else ({'graphite': '#17191E', 'white': '#F6F4F0', 'concrete': '#E3E1DC', 'copper': '#B8764B'}.get(S['bg'], 'none'))
@@ -139,7 +139,7 @@ def build(S, bg=None):
         if S['bend'] == 'corner' or S['arc'] == 0:
             a = S['angle'] * math.pi / 180; ex = x + s * L * math.cos(a); ey = yd - L * math.sin(a); d += f' L{f(ex)} {f(ey)}'
         else:
-            Rr = 8 + S['arc'] / 100 * 620; arcLen = Rr * th
+            Rr = (8 + S['arc'] / 100 * 620) * (1 - S.get('arcVar', 0) / 100 + 2 * S.get('arcVar', 0) / 100 * R4()); arcLen = Rr * th
             phi = L / Rr if L < arcLen else th; rest = max(0, L - arcLen)
             for k in range(1, 17):
                 a = phi * k / 16; grow(x + s * (Rr - Rr * math.cos(a)), yd - Rr * math.sin(a), hs)
@@ -147,6 +147,20 @@ def build(S, bg=None):
             d += f' A{f(Rr)} {f(Rr)} 0 0 {1 if s > 0 else 0} {f(ax)} {f(ay)}'
             ex = ax + rest * s * math.sin(phi); ey = ay - rest * math.cos(phi)
             if rest > 0: d += f' L{f(ex)} {f(ey)}'
+            if glow > 0:
+                gi = f'{uid}{i}'; GW = Rr * gsz; B = Rr * 3
+                down = yd + Rr * 0.7
+                gpath = f'M{f(x)} {f(down)} L{f(x)} {f(yd)} A{f(Rr)} {f(Rr)} 0 0 {1 if s > 0 else 0} {f(ax)} {f(ay)}' + (f' L{f(ex)} {f(ey)}' if rest > 0 else '')
+                clip = (f'M{f(x)} {f(yd + B)} L{f(x)} {f(yd)} A{f(Rr)} {f(Rr)} 0 0 {1 if s > 0 else 0} {f(ax)} {f(ay)}'
+                        + (f' L{f(ex)} {f(ey)}' if rest > 0 else '') + f' L{f(ex + s * B)} {f(ey)} L{f(ex + s * B)} {f(yd + B)} Z')
+                gdefs += (f'<clipPath id="{gi}c"><path d="{clip}"/></clipPath>'
+                          f'<filter id="{gi}f" filterUnits="userSpaceOnUse" x="{f(x - B)}" y="{f(ey - B)}" width="{f(2 * B + abs(ex - x) + B)}" height="{f(3 * B)}"><feGaussianBlur stdDeviation="{f(GW * 0.32)}"/></filter>'
+                          f'<linearGradient id="{gi}t" gradientUnits="userSpaceOnUse" x1="{f(x)}" y1="{f(yd)}" x2="{f(ex)}" y2="{f(ey)}"><stop offset="0" stop-color="#fff"/><stop offset=".45" stop-color="#fff" stop-opacity=".85"/><stop offset=".9" stop-color="#fff" stop-opacity="0"/></linearGradient>'
+                          f'<linearGradient id="{gi}v" gradientUnits="userSpaceOnUse" x1="0" y1="{f(down)}" x2="0" y2="{f(yd - Rr * 0.3)}"><stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset="1" stop-color="#fff"/></linearGradient>'
+                          f'<mask id="{gi}m" maskUnits="userSpaceOnUse" x="{f(x - B)}" y="{f(ey - B)}" width="{f(2 * B + abs(ex - x) + B)}" height="{f(3 * B)}"><rect x="{f(x - B)}" y="{f(ey - B)}" width="{f(2 * B + abs(ex - x) + B)}" height="{f(3 * B)}" fill="url(#{gi}t)"/></mask>'
+                          f'<mask id="{gi}n" maskUnits="userSpaceOnUse" x="{f(x - B)}" y="{f(ey - B)}" width="{f(2 * B + abs(ex - x) + B)}" height="{f(3 * B)}"><rect x="{f(x - B)}" y="{f(ey - B)}" width="{f(2 * B + abs(ex - x) + B)}" height="{f(3 * B)}" fill="url(#{gi}v)"/></mask>')
+                glows += (f'<g clip-path="url(#{gi}c)"><g mask="url(#{gi}m)"><g mask="url(#{gi}n)">'
+                          f'<path d="{gpath}" fill="none" stroke="{c}" stroke-opacity="{round(glow,3)}" stroke-width="{f(GW)}" filter="url(#{gi}f)"/></g></g></g>')
         grow(ex, ey, hs); topY = min(topY, ey, yd)
         paths += f'<path d="{d}" fill="none" stroke="{c}" stroke-width="{f(sw)}" stroke-linecap="{cap}" stroke-linejoin="round"/>'
         tips += tip(ex, ey, c)
@@ -156,7 +170,8 @@ def build(S, bg=None):
         grow(0, 0, hs); grow(0, top, hs)
         stem = f'<line x1="0" y1="0" x2="0" y2="{f(top)}" stroke="{sc}" stroke-width="{f(sw)}" stroke-linecap="{cap}"/>' + tip(0, top, sc)
     box[3] = 0
-    return stem + paths + tips, box
+    pre = (f'<defs>{gdefs}</defs>' + glows) if glows else ''
+    return pre + stem + paths + tips, box
 
 
 def place(S, cx, base_y, height=None, width=None, bg=None, extend=0):

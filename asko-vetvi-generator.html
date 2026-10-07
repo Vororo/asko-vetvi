@@ -1,0 +1,358 @@
+<title>Генератор ветвей ASKO</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* Layout: control panel on the left, live composition on the right; stacks on phones */
+:root{
+  --bg:#F6F4F0; --panel:#FFFFFF; --ink:#17191E; --muted:#5E636D; --line:#DEDBD4;
+  --stage:#E3E1DC; --accent:#8C5532; --accent-ink:#FFFFFF; --chip:#EEECE7;
+  --font:'Manrope', system-ui, sans-serif; --mono:'IBM Plex Mono', ui-monospace, monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#121317; --panel:#1B1D22; --ink:#ECEAE6; --muted:#9A9FA8; --line:#2E3138;
+  --stage:#0C0D10; --accent:#E0B08A; --accent-ink:#17191E; --chip:#24272D; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#121317; --panel:#1B1D22; --ink:#ECEAE6; --muted:#9A9FA8; --line:#2E3138;
+  --stage:#0C0D10; --accent:#E0B08A; --accent-ink:#17191E; --chip:#24272D; color-scheme:dark}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{background:var(--bg);color:var(--ink);font-family:var(--font);font-size:14px;margin:0}
+.app{display:grid;grid-template-columns:340px minmax(0,1fr);height:100%;min-height:0}
+.panel{background:var(--panel);border-right:1px solid var(--line);overflow-y:auto;padding:20px 20px 32px;display:flex;flex-direction:column;gap:22px}
+.brand{display:flex;flex-direction:column;gap:4px}
+.brand h1{margin:0;font-size:22px;font-weight:800;letter-spacing:-0.02em;text-wrap:balance}
+.brand p{margin:0;color:var(--muted);font-size:13px;line-height:1.5}
+.presets{display:flex;flex-wrap:wrap;gap:6px}
+.sec{display:flex;flex-direction:column;gap:12px;padding-top:16px;border-top:1px solid var(--line)}
+.sec h2{margin:0;font-size:13px;font-weight:700}
+.row{display:flex;flex-direction:column;gap:6px}
+.row label,.lab{display:flex;justify-content:space-between;align-items:baseline;font-size:13px;font-weight:500;color:var(--ink)}
+.row output{font-family:var(--mono);font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+input[type=range]{width:100%;accent-color:var(--accent);margin:0}
+.seg{display:flex;flex-wrap:wrap;gap:4px;background:var(--chip);padding:3px;border-radius:8px}
+.seg button{flex:1 1 auto;border:0;background:transparent;color:var(--ink);font:500 12.5px var(--font);padding:7px 8px;border-radius:6px;cursor:pointer;white-space:nowrap}
+.seg button[aria-pressed="true"]{background:var(--panel);box-shadow:0 0 0 1px var(--line);font-weight:700}
+.swatches{display:flex;flex-wrap:wrap;gap:8px}
+.sw{display:flex;align-items:center;gap:6px;border:1px solid var(--line);background:transparent;color:var(--ink);border-radius:999px;padding:4px 10px 4px 4px;font:500 12px var(--font);cursor:pointer}
+.sw i{width:18px;height:18px;border-radius:50%;box-shadow:inset 0 0 0 1px rgba(127,127,127,.35)}
+.sw[aria-pressed="true"]{border-color:var(--ink);font-weight:700}
+.sw .ord{font-family:var(--mono);font-size:10.5px;color:var(--muted)}
+.check{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:500;cursor:pointer}
+.check input{accent-color:var(--accent);width:16px;height:16px}
+.btn{border:1px solid var(--line);background:var(--panel);color:var(--ink);font:600 13px var(--font);padding:9px 14px;border-radius:8px;cursor:pointer}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.small{padding:6px 10px;font-size:12px}
+button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.stage{display:flex;flex-direction:column;min-width:0;min-height:0}
+.bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;padding:12px 20px;border-bottom:1px solid var(--line);background:var(--bg)}
+.bar .seg{background:var(--chip)}
+.actions{display:flex;flex-wrap:wrap;gap:8px}
+.frame{flex:1;min-height:0;position:relative;background:var(--stage);overflow:hidden;touch-action:none;cursor:grab}
+.frame.drag{cursor:grabbing}
+.frame svg{position:absolute;inset:0;width:100%;height:100%;display:block}
+.frame .dot{fill:var(--muted);opacity:.35}
+.zoom{display:flex;align-items:center;gap:6px}
+.zv{font-family:var(--mono);font-size:12px;color:var(--muted);min-width:48px;text-align:center;font-variant-numeric:tabular-nums}
+.status{display:flex;flex-wrap:wrap;gap:6px 18px;padding:10px 20px;font-family:var(--mono);font-size:12px;color:var(--muted);border-top:1px solid var(--line);background:var(--bg);font-variant-numeric:tabular-nums}
+.toast{min-height:16px;color:var(--accent)}
+@media (max-width:860px){
+  .app{grid-template-columns:1fr;height:auto}
+  .stage{order:-1}
+  .frame{min-height:62vh;flex:none;height:62vh}
+  .panel{border-right:0;overflow:visible;padding-inline:16px}
+  .bar{padding-inline:16px}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<div class="app">
+  <aside class="panel" id="panel">
+    <div class="brand">
+      <h1>Генератор ветвей</h1>
+      <p>Графический приём ASKO Invest: тонкие ветви-листья с мягким светом внутри изгиба. Цвета — медь и сталь. Холст бесконечный: колесо мыши масштабирует, перетаскивание двигает вид. Выгружается рамка дерева.</p>
+    </div>
+    <div class="row"><span class="lab">Пресеты</span><div class="presets" id="presets"></div></div>
+    <div id="controls"></div>
+  </aside>
+  <main class="stage">
+    <div class="bar">
+      <div class="zoom"><button class="btn small" id="zout" type="button" aria-label="Уменьшить">−</button><span id="zval" class="zv">100%</span><button class="btn small" id="zin" type="button" aria-label="Увеличить">+</button><button class="btn small" id="zfit" type="button">Вписать</button></div>
+      <div class="actions">
+        <button class="btn small" id="reseed" type="button">Перемешать</button>
+        <button class="btn small" id="copy" type="button">Скопировать SVG</button>
+        <button class="btn small" id="dlsvg" type="button" hidden>Скачать SVG</button>
+        <button class="btn small primary" id="dlpng" type="button" hidden>Скачать PNG</button>
+      </div>
+    </div>
+    <div class="frame" id="frame"><svg id="art" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Дерево ветвей ASKO"><defs><pattern id="dots" width="40" height="40" patternUnits="userSpaceOnUse"><circle cx="1" cy="1" r="1.1" class="dot"></circle></pattern></defs><rect id="bgfill" x="-1e6" y="-1e6" width="2e6" height="2e6"></rect><rect id="dotfill" x="-1e6" y="-1e6" width="2e6" height="2e6" fill="url(#dots)"></rect><g id="tree"></g><g id="frameMark"></g></svg></div>
+    <div class="status"><span id="stat"></span><span class="toast" id="toast" role="status"></span></div>
+  </main>
+</div>
+
+<script>
+const COL={copper:['#B8764B','Медь'],copperL:['#E0B08A','Светлая медь'],copperD:['#8C5532','Тёмная медь'],steel:['#8B919B','Сталь'],white:['#F6F4F0','Тёплый белый'],concrete:['#E3E1DC','Бетон'],graphite:['#17191E','Графит']};
+const BG={graphite:['#17191E','Графит'],white:['#F6F4F0','Белый'],concrete:['#E3E1DC','Бетон'],copper:['#B8764B','Медь'],none:['none','Прозрачный']};
+
+const DEF={n:3,sides:'right',stem:false,stemExtra:120,stemColor:'steel',bend:'arc',arc:55,arcVar:35,angle:6,len:560,lenMode:'random',lenVar:15,step:260,start:520,spacing:'even',cluster:65,sw:1.3,gap:4,colors:['steel','copperL'],combo:'alt',tip:'none',tipSize:100,glow:90,glowSize:75,bg:'graphite',pad:40,scale:2,seed:11};
+const PRESETS={
+  'Лист':{},
+  'Пара':{n:2,colors:['copperL','steel'],arc:60,arcVar:25,step:300,start:600,seed:4},
+  'Крона':{n:5,sides:'both',stem:true,stemExtra:140,arc:45,arcVar:30,angle:10,len:480,step:150,start:480,colors:['copperL','steel'],glow:75,seed:5},
+  'Росток':{n:2,sides:'both',stem:true,stemExtra:60,arc:30,arcVar:10,angle:24,len:260,lenMode:'equal',step:40,start:200,colors:['copperL'],combo:'one',stemColor:'copperL',glow:80,glowSize:70,sw:1.6},
+  'Поток':{n:8,arc:70,arcVar:40,angle:3,len:700,lenVar:30,step:110,start:300,spacing:'cluster',cluster:50,glow:55,glowSize:60,colors:['steel','copperL','steel'],seed:8},
+  'Блокчейн':{n:6,sides:'both',stem:true,stemExtra:80,bend:'corner',angle:34,len:300,lenMode:'shrink',lenVar:40,step:150,start:320,tip:'square',tipSize:70,colors:['copperL','steel'],glow:0}
+};
+let S=load();
+function load(){try{const s=JSON.parse(localStorage.getItem('asko-tree-v4')||'null');if(s&&typeof s==='object')return Object.assign({},DEF,s)}catch(e){}return Object.assign({},DEF)}
+function save(){try{localStorage.setItem('asko-tree-v4',JSON.stringify(S))}catch(e){}}
+
+const SPEC=[
+ ['Структура',[
+  ['range','n','Количество ветвей',1,30,1,''],
+  ['seg','sides','Стороны',[['both','Обе'],['left','Слева'],['right','Справа']]],
+  ['range','start','Ствол до первой ветви',0,2000,10,' px'],
+  ['check','stem','Центральный стебель'],
+  ['range','stemExtra','Стебель выше ветвей',0,1000,10,' px'],
+ ]],
+ ['Изгиб',[
+  ['seg','bend','Форма',[['arc','Дуга'],['corner','Прямой угол']]],
+  ['range','arc','Сила дуги',0,100,1,'%'],
+  ['range','angle','Угол выхода',0,80,1,'°'],
+  ['range','arcVar','Разные радиусы',0,80,1,'%'],
+ ]],
+ ['Свет внутри изгиба',[
+  ['range','glow','Яркость',0,100,1,'%'],
+  ['range','glowSize','Глубина',10,100,1,'%'],
+ ]],
+ ['Длина ветвей',[
+  ['range','len','Длина',20,2000,10,' px'],
+  ['seg','lenMode','Режим',[['equal','Одинаковая'],['grow','Растёт'],['shrink','Убывает'],['random','Разная']]],
+  ['range','lenVar','Разброс',0,90,1,'%'],
+ ]],
+ ['Расстояние между ветвями',[
+  ['seg','spacing','Расстановка',[['even','Равномерно'],['cluster','Скоплениями']]],
+  ['range','step','Шаг',0,300,1,' px'],
+  ['range','cluster','Сила скопления',0,100,1,'%'],
+ ]],
+ ['Линии',[
+  ['range','sw','Толщина линии',0.5,16,0.5,' px'],
+  ['range','gap','Зазор между нитями',0,40,0.5,' px'],
+ ]],
+ ['Цвет',[
+  ['colors','colors','Цвета ветвей'],
+  ['seg','combo','Сочетание',[['one','Один'],['alt','Чередование'],['grad','Градиент'],['random','Случайно']]],
+  ['pick','stemColor','Цвет стебля',COL],
+  ['pick','bg','Фон',BG],
+ ]],
+ ['Наконечники',[
+  ['seg','tip','Форма',[['none','Нет'],['dot','Точка'],['square','Квадрат'],['node','Узел'],['ring','Кольцо']]],
+  ['range','tipSize','Размер',40,250,5,'%'],
+ ]],
+ ['Выгрузка',[
+  ['range','pad','Поля вокруг дерева',0,300,5,' px'],
+  ['seg','scale','Масштаб PNG',[['1','1×'],['2','2×'],['4','4×']]],
+ ]],
+];
+
+const ctl=document.getElementById('controls');
+function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
+function renderControls(){
+  let h='';
+  for(const [title,items] of SPEC){
+    h+=`<section class="sec"><h2>${title}</h2>`;
+    for(const it of items){
+      const [type,key,label]=it;
+      if(type==='range'){const [, , ,min,max,step,unit]=it;
+        h+=`<div class="row"><label for="c-${key}"><span>${label}</span><output id="o-${key}"></output></label><input type="range" id="c-${key}" data-key="${key}" min="${min}" max="${max}" step="${step}" data-unit="${unit}"></div>`;}
+      else if(type==='seg'){h+=`<div class="row"><span class="lab">${label}</span><div class="seg" role="group" aria-label="${label}">${it[3].map(([v,l])=>`<button type="button" data-seg="${key}" data-val="${v}">${l}</button>`).join('')}</div></div>`;}
+      else if(type==='check'){h+=`<label class="check"><input type="checkbox" id="c-${key}" data-check="${key}"> ${label}</label>`;}
+      else if(type==='colors'){h+=`<div class="row"><span class="lab">${label}<output id="o-colors"></output></span><div class="swatches">${Object.entries(COL).map(([k,[hex,n]])=>`<button type="button" class="sw" data-color="${k}"><i style="background:${hex}"></i>${n}<span class="ord"></span></button>`).join('')}</div></div>`;}
+      else if(type==='pick'){h+=`<div class="row"><span class="lab">${label}</span><div class="swatches">${Object.entries(it[3]).map(([k,[hex,n]])=>`<button type="button" class="sw" data-pick="${key}" data-val="${k}"><i style="background:${hex==='none'?'repeating-conic-gradient(#ccc 0 25%,#fff 0 50%) 50%/8px 8px':hex}"></i>${n}</button>`).join('')}</div></div>`;}
+    }
+    h+='</section>';
+  }
+  ctl.innerHTML=h;
+  document.getElementById('presets').innerHTML=Object.keys(PRESETS).map(p=>`<button type="button" class="btn small" data-preset="${esc(p)}">${p}</button>`).join('');
+}
+function syncControls(){
+  document.querySelectorAll('input[type=range][data-key]').forEach(el=>{const k=el.dataset.key;el.value=S[k];document.getElementById('o-'+k).textContent=fmtNum(S[k])+el.dataset.unit});
+  document.querySelectorAll('[data-seg]').forEach(b=>b.setAttribute('aria-pressed',String(String(S[b.dataset.seg])===b.dataset.val)));
+  document.querySelectorAll('[data-check]').forEach(c=>c.checked=!!S[c.dataset.check]);
+  document.querySelectorAll('[data-color]').forEach(b=>{const i=S.colors.indexOf(b.dataset.color);b.setAttribute('aria-pressed',String(i>=0));b.querySelector('.ord').textContent=i>=0?String(i+1):''});
+  document.querySelectorAll('[data-pick]').forEach(b=>b.setAttribute('aria-pressed',String(S[b.dataset.pick]===b.dataset.val)));
+  document.getElementById('o-colors').textContent=S.colors.length+' из 7';
+  const dis=(k,on)=>{const el=document.getElementById('c-'+k);if(el){el.disabled=!on;el.closest('.row').style.opacity=on?1:.45}};
+  dis('arc',S.bend==='arc');dis('arcVar',S.bend==='arc');dis('glow',S.bend==='arc');dis('glowSize',S.bend==='arc'&&S.glow>0);dis('cluster',S.spacing==='cluster');dis('lenVar',S.lenMode!=='equal');dis('stemExtra',S.stem);dis('tipSize',S.tip!=='none');
+}
+function fmtNum(v){return (Math.round(v*10)/10).toString().replace('.',',')}
+
+function rng(seed){let a=seed>>>0;return()=>{a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+function hex2rgb(h){return[1,3,5].map(i=>parseInt(h.slice(i,i+2),16))}
+function mix(a,b,t){const A=hex2rgb(a),B=hex2rgb(b);return'#'+A.map((v,i)=>Math.round(v+(B[i]-v)*t).toString(16).padStart(2,'0')).join('')}
+const f=v=>(Math.round(v*10)/10);
+
+/* geometry in world coordinates: trunk base at (0,0), tree grows to negative y */
+function build(){
+  const R=rng(S.seed), R2=rng(S.seed*7+3), R3=rng(S.seed*13+5), R4=rng(S.seed*17+9);
+  const glow=(S.glow||0)/100, gsz=(S.glowSize||60)/100; let gdefs='', glows='';
+  const n=S.n, sw=S.sw, gap=sw+S.gap;
+  const bgHex=BG[S.bg][0];
+  const box={x0:Infinity,y0:Infinity,x1:-Infinity,y1:-Infinity};
+  const grow=(x,y,r)=>{box.x0=Math.min(box.x0,x-r);box.x1=Math.max(box.x1,x+r);box.y0=Math.min(box.y0,y-r);box.y1=Math.max(box.y1,y+r)};
+  const side=[];for(let i=0;i<n;i++)side.push(S.sides==='left'?-1:S.sides==='right'?1:(i%2===0?-1:1));
+  let gaps=[];
+  for(let i=1;i<n;i++){
+    if(S.spacing==='even')gaps.push(S.step);
+    else{const c=S.cluster/100;gaps.push(R()<0.35+0.55*c?S.step*(1-0.85*c)*(0.4+R()*0.6):S.step*(1+2.5*c)*(0.6+R()*0.8))}
+  }
+  if(S.spacing==='cluster'&&gaps.length){const sum=gaps.reduce((a,b)=>a+b,0)||1,target=S.step*(n-1);gaps=gaps.map(g=>g*target/sum)}
+  const p=[S.start];for(const g of gaps)p.push(p[p.length-1]+g);
+  const minSep=Math.max(gap*1.15,sw*1.5);
+  for(const s of [-1,1]){let last=-1e9;for(let i=0;i<n;i++){if(side[i]!==s)continue;if(p[i]<last+minSep)p[i]=last+minSep;last=p[i]}}
+  const lens=[];
+  for(let i=0;i<n;i++){const t=n>1?i/(n-1):1, v=S.lenVar/100;let L=S.len;
+    if(S.lenMode==='grow')L=S.len*(1-v+v*t);else if(S.lenMode==='shrink')L=S.len*(1-v*t);else if(S.lenMode==='random')L=S.len*(1-v+2*v*R2());
+    lens.push(Math.max(10,L));}
+  const pal=(S.colors.length?S.colors:['copper']).map(k=>COL[k][0]);
+  const cols=[];
+  for(let i=0;i<n;i++){
+    if(S.combo==='one')cols.push(pal[0]);else if(S.combo==='alt')cols.push(pal[i%pal.length]);else if(S.combo==='random')cols.push(pal[Math.floor(R3()*pal.length)]);
+    else{const t=n>1?i/(n-1):0;if(pal.length===1)cols.push(pal[0]);else{const seg=t*(pal.length-1),k=Math.min(pal.length-2,Math.floor(seg));cols.push(mix(pal[k],pal[k+1],seg-k))}}
+  }
+  const xs=[];
+  for(const s of [-1,1]){const idx=[];for(let i=0;i<n;i++)if(side[i]===s)idx.push(i);const k=idx.length, off=S.stem?gap:gap/2;idx.forEach((i,j)=>{xs[i]=s*(off+(k-1-j)*gap)})}
+  const tipS=S.tipSize/100, hs=sw/2;
+  function tip(x,y,c){
+    let r=0,out='';
+    if(S.tip==='dot'){r=sw*1.9*tipS;out=`<circle cx="${f(x)}" cy="${f(y)}" r="${f(r)}" fill="${c}"/>`}
+    else if(S.tip==='square'){const a=sw*3.6*tipS;r=a/2;out=`<rect x="${f(x-a/2)}" y="${f(y-a/2)}" width="${f(a)}" height="${f(a)}" fill="${c}"/>`}
+    else if(S.tip==='node'){const a=sw*4.6*tipS;r=a/2+hs;out=`<rect x="${f(x-a/2)}" y="${f(y-a/2)}" width="${f(a)}" height="${f(a)}" fill="${bgHex==='none'?'none':bgHex}" stroke="${c}" stroke-width="${f(sw)}"/>`}
+    else if(S.tip==='ring'){r=sw*2.6*tipS;out=`<circle cx="${f(x)}" cy="${f(y)}" r="${f(r)}" fill="${bgHex==='none'?'none':bgHex}" stroke="${c}" stroke-width="${f(sw)}"/>`;r+=hs}
+    grow(x,y,Math.max(r,hs));return out;
+  }
+  const th=(90-S.angle)*Math.PI/180;
+  let paths='',tips='',topY=0;
+  for(let i=0;i<n;i++){
+    const s=side[i], x=xs[i], yd=-p[i], L=lens[i], c=cols[i];
+    let d=`M${f(x)} 0 L${f(x)} ${f(yd)}`, ex, ey;
+    grow(x,0,hs);grow(x,yd,hs);
+    if(S.bend==='corner'||S.arc===0){const a=S.angle*Math.PI/180;ex=x+s*L*Math.cos(a);ey=yd-L*Math.sin(a);d+=` L${f(ex)} ${f(ey)}`}
+    else{
+      const av=(S.arcVar||0)/100, Rr=(8+S.arc/100*620)*(1-av+2*av*R4()), arcLen=Rr*th, phi=L<arcLen?L/Rr:th, rest=Math.max(0,L-arcLen);
+      for(let k=1;k<=16;k++){const a=phi*k/16;grow(x+s*(Rr-Rr*Math.cos(a)),yd-Rr*Math.sin(a),hs)}
+      const ax=x+s*(Rr-Rr*Math.cos(phi)), ay=yd-Rr*Math.sin(phi);
+      d+=` A${f(Rr)} ${f(Rr)} 0 0 ${s>0?1:0} ${f(ax)} ${f(ay)}`;
+      ex=ax+rest*s*Math.sin(phi); ey=ay-rest*Math.cos(phi); if(rest>0)d+=` L${f(ex)} ${f(ey)}`;
+      if(glow>0){
+        const gi='lf'+i, GW=Rr*gsz, B=Rr*3, down=yd+Rr*0.7, sf=s>0?1:0;
+        const arcD=`A${f(Rr)} ${f(Rr)} 0 0 ${sf} ${f(ax)} ${f(ay)}`+(rest>0?` L${f(ex)} ${f(ey)}`:'');
+        const gpath=`M${f(x)} ${f(down)} L${f(x)} ${f(yd)} `+arcD;
+        const clip=`M${f(x)} ${f(yd+B)} L${f(x)} ${f(yd)} `+arcD+` L${f(ex+s*B)} ${f(ey)} L${f(ex+s*B)} ${f(yd+B)} Z`;
+        const rx=f(x-B), ry=f(ey-B), rw=f(2*B+Math.abs(ex-x)+B), rh=f(3*B);
+        gdefs+=`<clipPath id="${gi}c"><path d="${clip}"/></clipPath>`
+          +`<filter id="${gi}f" filterUnits="userSpaceOnUse" x="${rx}" y="${ry}" width="${rw}" height="${rh}"><feGaussianBlur stdDeviation="${f(GW*0.32)}"/></filter>`
+          +`<linearGradient id="${gi}t" gradientUnits="userSpaceOnUse" x1="${f(x)}" y1="${f(yd)}" x2="${f(ex)}" y2="${f(ey)}"><stop offset="0" stop-color="#fff"/><stop offset=".45" stop-color="#fff" stop-opacity=".85"/><stop offset=".9" stop-color="#fff" stop-opacity="0"/></linearGradient>`
+          +`<linearGradient id="${gi}v" gradientUnits="userSpaceOnUse" x1="0" y1="${f(down)}" x2="0" y2="${f(yd-Rr*0.3)}"><stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset="1" stop-color="#fff"/></linearGradient>`
+          +`<mask id="${gi}m" maskUnits="userSpaceOnUse" x="${rx}" y="${ry}" width="${rw}" height="${rh}"><rect x="${rx}" y="${ry}" width="${rw}" height="${rh}" fill="url(#${gi}t)"/></mask>`
+          +`<mask id="${gi}n" maskUnits="userSpaceOnUse" x="${rx}" y="${ry}" width="${rw}" height="${rh}"><rect x="${rx}" y="${ry}" width="${rw}" height="${rh}" fill="url(#${gi}v)"/></mask>`;
+        glows+=`<g clip-path="url(#${gi}c)"><g mask="url(#${gi}m)"><g mask="url(#${gi}n)"><path d="${gpath}" fill="none" stroke="${c}" stroke-opacity="${f(glow*100)/100}" stroke-width="${f(GW)}" filter="url(#${gi}f)"/></g></g></g>`;
+      }
+    }
+    grow(ex,ey,hs); topY=Math.min(topY,ey,yd);
+    paths+=`<path d="${d}" fill="none" stroke="${c}" stroke-width="${f(sw)}" stroke-linecap="${S.tip==='none'?'round':'butt'}" stroke-linejoin="round"/>`;
+    tips+=tip(ex,ey,c);
+  }
+  let stem='';
+  if(S.stem){const top=topY-S.stemExtra, sc=COL[S.stemColor][0];grow(0,0,hs);grow(0,top,hs);
+    stem=`<line x1="0" y1="0" x2="0" y2="${f(top)}" stroke="${sc}" stroke-width="${f(sw)}" stroke-linecap="${S.tip==='none'?'round':'butt'}"/>`+tip(0,top,sc)}
+  if(!isFinite(box.x0)){box.x0=-10;box.x1=10;box.y0=-10;box.y1=0}
+  // trunk is cut flat at the base
+  box.y1=0;
+  const trunkW=(S.stem?2*gap:gap)+(Math.max(0,side.filter(v=>v<0).length-1)+Math.max(0,side.filter(v=>v>0).length-1))*gap+sw;
+  return {inner:(glows?`<defs>${gdefs}</defs>`+glows:'')+stem+paths+tips,box,trunkW,bgHex};
+}
+
+/* view */
+const art=document.getElementById('art'), frame=document.getElementById('frame'), treeG=document.getElementById('tree'), mark=document.getElementById('frameMark');
+let current, view={cx:0,cy:-500,k:0.6}, fitted=false;
+function applyView(){
+  const w=frame.clientWidth,h=frame.clientHeight;
+  art.setAttribute('viewBox',`${f(view.cx-w/2/view.k)} ${f(view.cy-h/2/view.k)} ${f(w/view.k)} ${f(h/view.k)}`);
+  document.getElementById('zval').textContent=Math.round(view.k*100)+'%';
+  drawMark();
+}
+function exportBox(){const b=current.box,P=S.pad;return{x:Math.floor(b.x0-P),y:Math.floor(b.y0-P),w:Math.ceil(b.x1-b.x0+2*P),h:Math.ceil(b.y1-b.y0+2*P)}}
+function drawMark(){
+  if(!current)return;const e=exportBox(),k=view.k,sw=1.2/k,fs=12/k;
+  mark.innerHTML=`<rect x="${e.x}" y="${e.y}" width="${e.w}" height="${e.h}" fill="none" stroke="#B8764B" stroke-width="${f(sw)}" stroke-dasharray="${f(6/k)} ${f(4/k)}"/>`+
+   `<text x="${e.x}" y="${f(e.y-8/k)}" font-family="IBM Plex Mono, monospace" font-size="${f(fs)}" fill="#B8764B">${e.w} × ${e.h} px</text>`;
+}
+function fit(){
+  if(!current)return;const e=exportBox(),w=frame.clientWidth,h=frame.clientHeight,m=48;
+  view.k=Math.max(0.02,Math.min((w-2*m)/e.w,(h-2*m)/e.h,4));view.cx=e.x+e.w/2;view.cy=e.y+e.h/2;applyView();
+}
+function render(){
+  current=build();
+  treeG.innerHTML=current.inner;
+  const bg=document.getElementById('bgfill');bg.setAttribute('fill',current.bgHex==='none'?'transparent':current.bgHex);
+  document.getElementById('dotfill').style.display=current.bgHex==='none'?'':'none';
+  const e=exportBox();
+  document.getElementById('stat').textContent=`${S.n} ${plural(S.n,'ветвь','ветви','ветвей')}  ·  ствол ≈ ${Math.round(current.trunkW)} px  ·  выгрузка ${e.w} × ${e.h} px`;
+  if(!fitted){fitted=true;fit()}else applyView();
+  syncControls();save();
+}
+function plural(n,a,b,c){const m=n%10,h=n%100;return m===1&&h!==11?a:m>=2&&m<=4&&(h<12||h>14)?b:c}
+
+/* pan & zoom */
+function zoomAt(factor,px,py){const r=frame.getBoundingClientRect();const w=r.width,h=r.height;px=px??w/2;py=py??h/2;
+  const wx=view.cx+(px-w/2)/view.k, wy=view.cy+(py-h/2)/view.k;const k=Math.max(0.02,Math.min(8,view.k*factor));
+  view.cx=wx-(px-w/2)/k;view.cy=wy-(py-h/2)/k;view.k=k;applyView()}
+frame.addEventListener('wheel',e=>{e.preventDefault();const r=frame.getBoundingClientRect();
+  if(!e.ctrlKey&&(e.shiftKey||(e.deltaMode===0&&Math.abs(e.deltaX)>0))){view.cx+=(e.shiftKey?e.deltaY:e.deltaX)/view.k;if(!e.shiftKey)view.cy+=e.deltaY/view.k;applyView();return}
+  zoomAt(Math.exp(-e.deltaY*(e.ctrlKey?0.01:0.0018)),e.clientX-r.left,e.clientY-r.top)},{passive:false});
+const ptrs=new Map();let pinch=null;
+frame.addEventListener('pointerdown',e=>{frame.setPointerCapture(e.pointerId);ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});frame.classList.add('drag');
+  if(ptrs.size===2){const [a,b]=[...ptrs.values()];pinch={d:Math.hypot(a.x-b.x,a.y-b.y),k:view.k}}});
+frame.addEventListener('pointermove',e=>{if(!ptrs.has(e.pointerId))return;const prev=ptrs.get(e.pointerId);ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  if(ptrs.size===2&&pinch){const [a,b]=[...ptrs.values()];const d=Math.hypot(a.x-b.x,a.y-b.y);const r=frame.getBoundingClientRect();zoomAt(pinch.k*d/pinch.d/view.k,(a.x+b.x)/2-r.left,(a.y+b.y)/2-r.top)}
+  else if(ptrs.size===1){view.cx-=(e.clientX-prev.x)/view.k;view.cy-=(e.clientY-prev.y)/view.k;applyView()}});
+const up=e=>{ptrs.delete(e.pointerId);if(ptrs.size<2)pinch=null;if(!ptrs.size)frame.classList.remove('drag')};
+frame.addEventListener('pointerup',up);frame.addEventListener('pointercancel',up);
+document.getElementById('zin').addEventListener('click',()=>zoomAt(1.25));
+document.getElementById('zout').addEventListener('click',()=>zoomAt(0.8));
+document.getElementById('zfit').addEventListener('click',fit);
+addEventListener('resize',applyView);
+
+renderControls();render();
+
+document.addEventListener('input',e=>{const k=e.target.dataset&&e.target.dataset.key;if(k){S[k]=parseFloat(e.target.value);render()}});
+document.addEventListener('change',e=>{const k=e.target.dataset&&e.target.dataset.check;if(k){S[k]=e.target.checked;render()}});
+document.addEventListener('click',e=>{
+  const b=e.target.closest('button');if(!b)return;
+  if(b.dataset.seg){const v=b.dataset.val;S[b.dataset.seg]=b.dataset.seg==='scale'?parseInt(v,10):v;render()}
+  else if(b.dataset.color){const k=b.dataset.color,i=S.colors.indexOf(k);if(i>=0){if(S.colors.length>1)S.colors=S.colors.filter(c=>c!==k)}else S.colors=[...S.colors,k];render()}
+  else if(b.dataset.pick){S[b.dataset.pick]=b.dataset.val;render()}
+  else if(b.dataset.preset){S=Object.assign({},DEF,PRESETS[b.dataset.preset],{seed:S.seed,pad:S.pad,scale:S.scale});render();fit();toast('Пресет «'+b.dataset.preset+'»')}
+});
+document.getElementById('reseed').addEventListener('click',()=>{S.seed=Math.floor(Math.random()*1e6);render()});
+
+function exportSVG(){const e=exportBox();const bg=current.bgHex==='none'?'':`<rect x="${e.x}" y="${e.y}" width="${e.w}" height="${e.h}" fill="${current.bgHex}"/>`;
+  return`<svg xmlns="http://www.w3.org/2000/svg" viewBox="${e.x} ${e.y} ${e.w} ${e.h}" width="${e.w}" height="${e.h}">${bg}${current.inner}</svg>`}
+function toast(t){const el=document.getElementById('toast');el.textContent=t;clearTimeout(toast.t);toast.t=setTimeout(()=>el.textContent='',2600)}
+document.getElementById('copy').addEventListener('click',()=>{
+  const s=exportSVG();
+  const fallback=()=>{const ta=document.createElement('textarea');ta.value=s;ta.style.position='fixed';ta.style.opacity='0';document.body.appendChild(ta);ta.select();let ok=false;try{ok=document.execCommand('copy')}catch(e){}ta.remove();toast(ok?'SVG скопирован':'Не удалось скопировать, используйте выгрузку файла')};
+  try{navigator.clipboard.writeText(s).then(()=>toast('SVG скопирован'),fallback)}catch(e){fallback()}
+});
+const fname=(ext,sc)=>{const e=exportBox();return`asko-vetvi-${e.w*(sc||1)}x${e.h*(sc||1)}.${ext}`};
+function pngBlob(sc){const e=exportBox();return new Promise((res,rej)=>{const img=new Image();img.onload=()=>{const c=document.createElement('canvas');c.width=e.w*sc;c.height=e.h*sc;const g=c.getContext('2d');g.scale(sc,sc);g.drawImage(img,0,0,e.w,e.h);c.toBlob(b=>b?res(b):rej(new Error('png')),'image/png')};img.onerror=rej;img.src='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(exportSVG())})}
+const MSG={declined:'Сохранение отменено',rate_limited:'Окно сохранения уже открыто',too_large:'Файл слишком большой, уменьшите масштаб PNG'};
+(async()=>{
+  let dl=null;try{dl=window.claude&&await window.claude.use('downloads')}catch(e){dl=null}
+  if(!dl)dl={save:async({filename,data})=>{const b=data instanceof Blob?data:new Blob([data],{type:'image/svg+xml'});const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),2000)}};
+  const bs=document.getElementById('dlsvg'),bp=document.getElementById('dlpng');bs.hidden=false;bp.hidden=false;
+  const go=async(make,name)=>{try{const data=await make();await dl.save({filename:name,data});toast('Файл передан на сохранение')}catch(e){toast(MSG[e&&e.code]||'Не удалось сохранить файл')}};
+  bs.addEventListener('click',()=>go(async()=>exportSVG(),fname('svg')));
+  bp.addEventListener('click',()=>go(()=>pngBlob(S.scale),fname('png',S.scale)));
+})();
+</script>
